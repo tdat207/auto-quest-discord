@@ -1,28 +1,47 @@
-# Discord Auto Quest Bot (MT System Clone)
+# ⚡ Discord Autonomous Multi-Quest Bot (24/7 Cloud & Local Edition)
 
-Hệ thống Bot tự động hóa Discord Quest dành cho máy cá nhân và server bạn bè.
-
-## Cách Sử Dụng:
-
-### 1. Cấu hình Bot Token (Chỉ làm lần đầu)
-1. Truy cập [Discord Developer Portal](https://discord.com/developers/applications).
-2. Tạo **New Application** -> Vào mục **Bot** -> Bấm **Reset Token** để copy **Bot Token**.
-3. Kéo xuống mục **Privileged Gateway Intents**, bật công tắc **Message Content Intent** (bật cả 3 công tắc).
-4. Vào **OAuth2** -> **URL Generator**:
-   - Scopes: Chọn `bot` và `applications.commands`.
-   - Permissions: Chọn `Administrator`.
-   - Copy URL ở dưới và mở lên trình duyệt để mời Bot vào Server Discord của bạn.
-5. Mở file `config.json` và dán Bot Token vào:
-   ```json
-   {
-     "botToken": "DÁN_BOT_TOKEN_VÀO_ĐÂY"
-   }
-   ```
-
-### 2. Khởi Động Bot
-- Chạy file **`start.bat`**.
-- Vào Server Discord, gõ lệnh `!setup` vào kênh chat.
-- Bảng điều khiển sẽ hiện ra. Bạn hoặc bạn bè chỉ cần bấm **🚀 Bắt đầu** và dán User Token vào khung pop-up riêng tư để tự động cày tất cả nhiệm vụ cùng lúc!
+Hệ thống Bot Discord tự động quét và hoàn thành tất cả nhiệm vụ (Game + Video) song song trong 15 phút, hỗ trợ đa người dùng (Multi-Session) và chạy 24/7 trên Cloud.
 
 ---
-*(Ngoài ra, nếu muốn chạy riêng lẻ 1-click cho riêng bạn mà không cần mở Bot, bạn vẫn có thể bấm đúp vào `chay_nhanh.bat`).*
+
+## 🚀 Triển Khai 24/7 Miễn Phí Lên Render.com (Không cần mở máy tính)
+
+1. Đăng nhập vào [Render.com](https://render.com) (chọn Login with GitHub).
+2. Chọn **New +** ➔ **Web Service**.
+3. Chọn kho lưu trữ **`auto-quest-discord`** từ danh sách GitHub của bạn.
+4. Thiết lập các thông số:
+   - **Name:** `auto-quest-discord`
+   - **Runtime:** `Node`
+   - **Build Command:** `npm install`
+   - **Start Command:** `npm start`
+5. Kéo xuống mục **Environment Variables** (Biến môi trường), thêm:
+   - **Key:** `BOT_TOKEN`
+   - **Value:** `Dán_Bot_Token_Của_Bạn_Vào_Đây`
+6. Bấm **Deploy Web Service**.
+   - Render sẽ tự động cài đặt và chạy bot vĩnh viễn 24/7.
+   - Bot có sẵn máy chủ Health-Check giữ kết nối sống liên tục.
+
+---
+
+## 💻 Hoặc Chạy Trực Tiếp Trên Máy Tính (Local)
+
+1. Mở file `config.json` và điền Bot Token.
+2. Bấm đúp file **`start.bat`** để khởi động.
+
+---
+
+## 🎮 Cách Sử Dụng Trong Server Discord
+
+1. Mời Bot vào Server của bạn bằng link OAuth2:
+   ```
+   https://discord.com/oauth2/authorize?client_id=1573022107757973626&permissions=8&integration_type=0&scope=bot+applications.commands
+   ```
+2. Trong kênh chat server, gõ:
+   ```
+   /setup
+   ```
+3. Bảng điều khiển tương tác sẽ xuất hiện:
+   - **🚀 Bắt đầu:** Bật popup riêng tư để người dùng dán User Token. Hệ thống sẽ gửi DM báo cáo chi tiết các quest trước, sau đó cày song song và DM chúc mừng khi chạm 100%.
+   - **🔑 Lấy Token:** Nhận hướng dẫn và mã 1 dòng tự copy token trong F12 Console.
+   - **📊 Tiến độ:** Xem tiến độ thời gian thực của các quest đang chạy.
+   - **⏹ Dừng phiên:** Dừng phiên làm việc hiện tại.
