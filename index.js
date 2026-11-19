@@ -220,8 +220,8 @@ client.on('interactionCreate', async (interaction) => {
 /**
  * Core User Flow:
  * 1. Pre-Scan Account
- * 2. Send Private DM Report
- * 3. Channel Live Announcement & Parallel Progression
+ * 2. Send Everything to Private DM (Zero public spam in channel)
+ * 3. Live Parallel Progression inside DM
  */
 const handleUserTokenSubmission = async (discordUser, token, channel, interaction) => {
     const userId = discordUser.id;
@@ -231,34 +231,51 @@ const handleUserTokenSubmission = async (discordUser, token, channel, interactio
         activeSessions.delete(userId);
     }
 
-    // Step 1: Pre-Scan Quests
+    // Step 1: Open DM Channel
+    let dmChannel = null;
+    try {
+        dmChannel = await discordUser.createDM();
+    } catch (e) {
+        console.warn(`[DM Open Failed] User ${discordUser.tag}: ${e.message}`);
+    }
+
+    // Step 2: Pre-Scan Quests
     let scanResult;
     try {
         scanResult = await QuestSession.scanAccount(token);
     } catch (e) {
-        const errMsg = `❌ Lỗi xác thực: ${e.message}`;
+        const errMsg = `❌ Lỗi xác thực tài khoản: ${e.message}`;
         if (interaction) {
             await interaction.editReply({ content: errMsg });
-        } else {
-            await channel.send({ content: `<@${userId}> ${errMsg}` });
         }
         return;
     }
 
     const { user: accUser, pending, completed } = scanResult;
 
+    // Check if DM is accessible
+    if (!dmChannel) {
+        const warning = `⚠️ **Không thể gửi Tin Nhắn Riêng (DM) cho bạn!**\n` +
+            `Bạn đang chặn tin nhắn từ thành viên server. Hãy bật tin nhắn riêng:\n` +
+            `👉 *Cài đặt người dùng ➔ Quyền riêng tư & An toàn ➔ Bật "Cho phép tin nhắn trực tiếp từ thành viên máy chủ"*.`;
+        if (interaction) {
+            await interaction.editReply({ content: warning });
+        }
+        return;
+    }
+
     // Case A: Everything is already 100% complete
     if (pending.length === 0) {
         let dmDesc = `**Tài khoản:** \`${accUser.tag}\` (ID: ${accUser.id})\n\n`;
-        dmDesc += `🎉 **Tất cả nhiệm vụ trên tài khoản của bạn đã HOÀN THÀNH 100%!**\n`;
-        dmDesc += `Không còn nhiệm vụ nào cần làm.\n\n`;
+        dmDesc += `🎉 **TẤT CẢ NHIỆM VỤ ĐÃ HOÀN THÀNH 100%!**\n`;
+        dmDesc += `Không còn nhiệm vụ nào cần làm trên tài khoản này.\n\n`;
         if (completed.length > 0) {
-            dmDesc += `**Danh sách các nhiệm vụ đã xong:**\n`;
+            dmDesc += `**Danh sách nhiệm vụ đã hoàn tất:**\n`;
             completed.forEach(q => {
-                dmDesc += ` • ✅ **${q.name}** — ${q.rewardName}\n`;
+                dmDesc += ` • ✅ **${q.name}** — *${q.rewardName}*\n`;
             });
         }
-        dmDesc += `\n🎁 *Hãy mở Discord lên để nhận quà (Orbs/Vật phẩm).*`;
+        dmDesc += `\n🎁 *Hãy mở Discord lên vào mục Nhiệm Vụ (Quests) để nhận Orbs / Vật phẩm.*`;
 
         const dmEmbed = new EmbedBuilder()
             .setTitle('✨ Báo Cáo Nhiệm Vụ — Đã Hoàn Thành 100%')
@@ -266,23 +283,19 @@ const handleUserTokenSubmission = async (discordUser, token, channel, interactio
             .setColor(0x57F287)
             .setTimestamp();
 
-        // Send DM
         try {
-            await discordUser.send({ embeds: [dmEmbed] });
+            await dmChannel.send({ embeds: [dmEmbed] });
         } catch (e) {}
 
-        const msg = `✨ Tài khoản **${accUser.tag}** đã hoàn thành 100% tất cả các nhiệm vụ hiện có! Không còn nhiệm vụ nào cần làm.`;
         if (interaction) {
-            await interaction.editReply({ content: msg });
-        } else {
-            await channel.send({ content: `<@${userId}> ${msg}` });
+            await interaction.editReply({ content: `✅ Tài khoản **${accUser.tag}** đã xong 100% tất cả quest! Chi tiết đã gửi trong **Tin nhắn riêng (DM)**.` });
         }
         return;
     }
 
-    // Case B: There are pending quests -> Send Private DM Report FIRST!
+    // Case B: There are pending quests -> Send Initial DM & Setup Live DM Message
     let dmReport = `**Tài khoản Discord:** \`${accUser.tag}\`\n`;
-    dmReport += `Phát hiện **${pending.length} nhiệm vụ** khả dụng cần thực hiện:\n\n`;
+    dmReport += `Phát hiện **${pending.length} nhiệm vụ** đang cần thực hiện:\n\n`;
 
     pending.forEach((q, idx) => {
         const icon = q.isVideo ? '🎬' : '🎮';
@@ -292,41 +305,28 @@ const handleUserTokenSubmission = async (discordUser, token, channel, interactio
         dmReport += `   └ Loại: *${typeStr}* · Thời gian: *${durationStr}* · Thưởng: **${q.rewardName}** (Tiến độ: ${q.pct}%)\n`;
     });
 
-    dmReport += `\n⚡ **Tiến trình tự động cày song song đã bắt đầu trong kênh chat server!**`;
+    dmReport += `\n⏳ *Hệ thống đang bắt đầu cày song song tất cả nhiệm vụ...*`;
 
-    const dmReportEmbed = new EmbedBuilder()
-        .setTitle('📋 Báo Cáo Quét Nhiệm Vụ — Chuẩn Bị Bắt Đầu')
+    const liveEmbed = new EmbedBuilder()
+        .setTitle(`🚀 Đang tự động làm ${pending.length} nhiệm vụ song song`)
         .setDescription(dmReport)
         .setColor(0x5865F2)
-        .setFooter({ text: 'Hệ thống đang chạy song song toàn bộ nhiệm vụ' })
+        .setFooter({ text: 'Cập nhật trực tiếp mỗi 20 giây trong DM' })
         .setTimestamp();
 
-    let dmDelivered = false;
+    let liveDmMessage = null;
     try {
-        await discordUser.send({ embeds: [dmReportEmbed] });
-        dmDelivered = true;
+        liveDmMessage = await dmChannel.send({ embeds: [liveEmbed] });
     } catch (e) {
-        console.warn(`[DM Blocked] Không thể gửi DM cho user ${discordUser.tag}: ${e.message}`);
+        console.warn(`[DM Send Failed]: ${e.message}`);
     }
 
+    // Ephemeral reply to user in server - ZERO chat drift in the channel!
     if (interaction) {
-        const confirmTxt = dmDelivered ?
-            `✅ Đã gửi chi tiết ${pending.length} nhiệm vụ vào **Tin nhắn riêng (DM)** của bạn!\nTiến độ đang được cập nhật trực tiếp tại kênh chat.` :
-            `✅ Đã quét xong ${pending.length} nhiệm vụ!\n*(Lưu ý: Bạn đang tắt nhận tin nhắn riêng nên Bot không gửi DM được).*`;
-        await interaction.editReply({ content: confirmTxt });
+        await interaction.editReply({
+            content: `✅ Đã khởi động cày **${pending.length} nhiệm vụ** song song!\n📩 **Toàn bộ tiến độ và kết quả đang được gửi trực tiếp trong Tin nhắn riêng (DM) của bạn.** Hãy mở DM với Bot để theo dõi!`
+        });
     }
-
-    // Step 2: Channel Live Announcement & Progress
-    let progressMsg = null;
-    try {
-        const initEmbed = new EmbedBuilder()
-            .setTitle(`🚀 Đang tự động làm ${pending.length} nhiệm vụ song song`)
-            .setDescription(`**Tài khoản:** <@${userId}> (\`${accUser.tag}\`)\n⏳ Đang khởi tạo kết nối và nhận toàn bộ nhiệm vụ...`)
-            .setColor(0xFAA61A)
-            .setFooter({ text: 'Cập nhật mỗi 20 giây · MT System Clone' });
-
-        progressMsg = await channel.send({ embeds: [initEmbed] });
-    } catch (e) {}
 
     // Step 3: Start QuestSession
     const session = new QuestSession(token, {
@@ -338,68 +338,58 @@ const handleUserTokenSubmission = async (discordUser, token, channel, interactio
                 activeSessions.get(userId).lastList = questList;
             }
 
-            if (progressMsg) {
-                let desc = `**Tài khoản:** <@${userId}> (\`${accUser.tag}\`)\n\n`;
+            if (liveDmMessage) {
+                let desc = `**Tài khoản:** \`${accUser.tag}\`\n\n`;
                 for (const q of questList) {
                     const bar = generateProgressBar(q.pct);
-                    const icon = q.isCompleted ? '✅' : '🎮';
+                    const icon = q.isCompleted ? '✅' : (q.isVideo ? '🎬' : '🎮');
                     desc += `${icon} **${q.name}**\n\`[${bar}]\` **${q.pct}%** (${Math.floor(q.elapsed / 60)}m/${Math.floor(q.targetSeconds / 60)}m)\n\n`;
                 }
                 desc += `⚡ *Tất cả nhiệm vụ đang được cày song song trong đúng 1 lượt 15 phút!*`;
 
                 const embed = new EmbedBuilder()
-                    .setTitle(`🎮 Đang tự động làm ${questList.length} nhiệm vụ song song`)
+                    .setTitle(`🎮 Tiến độ ${questList.length} nhiệm vụ song song`)
                     .setDescription(desc)
                     .setColor(0x5865F2)
-                    .setFooter({ text: 'Cập nhật mỗi 20 giây · Không cần mở game' });
+                    .setFooter({ text: 'Tự động cập nhật mỗi 20s · Không cần mở game' });
 
-                await progressMsg.edit({ embeds: [embed] }).catch(() => {});
+                await liveDmMessage.edit({ embeds: [embed] }).catch(() => {});
             }
         },
         onComplete: async (completedNames) => {
-            if (progressMsg) {
+            if (liveDmMessage) {
                 const completeEmbed = new EmbedBuilder()
                     .setTitle('🎉 TẤT CẢ NHIỆM VỤ ĐÃ HOÀN THÀNH 100%!')
                     .setDescription(
-                        `Chúc mừng <@${userId}> (\`${accUser.tag}\`)!\nCác nhiệm vụ đã hoàn thành:\n` +
+                        `Chúc mừng \`${accUser.tag}\`!\nCác nhiệm vụ đã hoàn thành:\n` +
                         completedNames.map(n => `• ✅ **${n}**`).join('\n') +
-                        `\n\n🎁 **Hãy mở Discord lên để nhận toàn bộ phần thưởng (Orbs / Vật phẩm)!**`
+                        `\n\n🎁 **Hãy mở Discord lên vào mục Nhiệm Vụ (Quests) để nhận toàn bộ phần thưởng (Orbs / Vật phẩm)!**`
                     )
                     .setColor(0x57F287)
                     .setTimestamp();
 
-                await progressMsg.edit({ embeds: [completeEmbed] }).catch(() => {});
-                await channel.send(`🔔 <@${userId}> Tất cả nhiệm vụ của bạn đã hoàn thành 100%!`).catch(() => {});
+                await liveDmMessage.edit({ embeds: [completeEmbed] }).catch(() => {});
             }
 
-            // Send Final DM Notification
-            try {
-                const finalDm = new EmbedBuilder()
-                    .setTitle('🎉 Chúc Mừng! Tất Cả Nhiệm Vụ Đã Hoàn Thành')
-                    .setDescription(
-                        `Toàn bộ **${completedNames.length} nhiệm vụ** trên tài khoản \`${accUser.tag}\` đã hoàn thành 100%!\n\n` +
-                        `Hãy mở Discord vào mục **Nhiệm Vụ (Quests)** để nhận thưởng ngay nhé.`
-                    )
-                    .setColor(0x57F287)
-                    .setTimestamp();
-                await discordUser.send({ embeds: [finalDm] });
-            } catch (e) {}
+            if (dmChannel) {
+                await dmChannel.send(`🔔 <@${userId}> Tất cả nhiệm vụ của bạn đã hoàn thành 100%! Hãy mở Discord nhận thưởng ngay nhé.`).catch(() => {});
+            }
 
             activeSessions.delete(userId);
         },
         onError: async (errMsg) => {
-            if (progressMsg) {
+            if (liveDmMessage) {
                 const errEmbed = new EmbedBuilder()
                     .setTitle('❌ Có lỗi xảy ra trong quá trình chạy')
                     .setDescription(errMsg)
                     .setColor(0xED4245);
-                await progressMsg.edit({ embeds: [errEmbed] }).catch(() => {});
+                await liveDmMessage.edit({ embeds: [errEmbed] }).catch(() => {});
             }
             activeSessions.delete(userId);
         }
     });
 
-    activeSessions.set(userId, { session, message: progressMsg, lastList: [], targetUser: discordUser });
+    activeSessions.set(userId, { session, message: liveDmMessage, lastList: [], targetUser: discordUser });
     session.start(pending);
 };
 
