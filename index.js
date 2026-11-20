@@ -76,7 +76,8 @@ const createCenterEmbed = () => {
             '• **📊 Tiến độ** — Theo dõi thời gian thực phiên đang chạy\n' +
             '• **🔄 Quét lại** — Làm mới và chạy lại danh sách quest\n' +
             '• **⏹ Dừng phiên** — Hủy phiên làm quest hiện tại\n\n' +
-            '👥 *Nhiều người dùng có thể bấm chạy cùng lúc hoàn toàn độc lập!*'
+            '💡 *Mẹo chạy nhanh:* Gõ `/quest token: <token>` để chạy tức thì không cần bấm nút!\n' +
+            '👥 *Nhiều người dùng có thể kích hoạt cùng lúc hoàn toàn độc lập!*'
         )
         .setColor(0x5865F2)
         .setFooter({ text: 'Discord Multi-Quest Engine · MT System Clone' });
@@ -120,10 +121,18 @@ client.once('ready', async () => {
             },
             {
                 name: 'quest',
-                description: 'Mở Bảng Điều Khiển Trung tâm Quest'
+                description: 'Chạy cày quest tự động hoặc mở Bảng Điều Khiển',
+                options: [
+                    {
+                        name: 'token',
+                        description: 'Dán User Token để chạy trực tiếp (Không lo lag nút bấm)',
+                        type: 3, // String type
+                        required: false
+                    }
+                ]
             }
         ]);
-        console.log('[Ritmada] Đã đăng ký Slash Command: gõ "/setup" trong Discord để dùng.');
+        console.log('[Ritmada] Đã đăng ký Slash Command: gõ "/setup" hoặc "/quest" trong Discord để dùng.');
     } catch (e) {
         console.error('Lỗi đăng ký slash command:', e.message);
     }
@@ -132,7 +141,20 @@ client.once('ready', async () => {
 client.on('interactionCreate', async (interaction) => {
     // 1. Handle Slash Commands (/setup, /quest)
     if (interaction.isChatInputCommand()) {
-        if (interaction.commandName === 'setup' || interaction.commandName === 'quest') {
+        if (interaction.commandName === 'setup') {
+            const embed = createCenterEmbed();
+            const row = createActionButtons();
+            await interaction.reply({ embeds: [embed], components: [row] });
+            return;
+        }
+
+        if (interaction.commandName === 'quest') {
+            const tokenArg = interaction.options.getString('token');
+            if (tokenArg && tokenArg.trim()) {
+                await interaction.deferReply({ ephemeral: true });
+                await handleUserTokenSubmission(interaction.user, tokenArg.trim(), interaction.channel, interaction);
+                return;
+            }
             const embed = createCenterEmbed();
             const row = createActionButtons();
             await interaction.reply({ embeds: [embed], components: [row] });
@@ -145,19 +167,29 @@ client.on('interactionCreate', async (interaction) => {
         const userId = interaction.user.id;
 
         if (interaction.customId === 'btn_start') {
-            const modal = new ModalBuilder()
-                .setCustomId('modal_token_input')
-                .setTitle('Nhập Token Tài Khoản Discord');
+            try {
+                const modal = new ModalBuilder()
+                    .setCustomId('modal_token_input')
+                    .setTitle('Nhập Token Tài Khoản Discord');
 
-            const tokenInput = new TextInputBuilder()
-                .setCustomId('user_token')
-                .setLabel('Discord User Token (Cần làm quest)')
-                .setStyle(TextInputStyle.Paragraph)
-                .setPlaceholder('Dán user token của tài khoản vào đây...')
-                .setRequired(true);
+                const tokenInput = new TextInputBuilder()
+                    .setCustomId('user_token')
+                    .setLabel('Discord User Token (Cần làm quest)')
+                    .setStyle(TextInputStyle.Paragraph)
+                    .setPlaceholder('Dán user token của tài khoản vào đây...')
+                    .setRequired(true);
 
-            modal.addComponents(new ActionRowBuilder().addComponents(tokenInput));
-            await interaction.showModal(modal);
+                modal.addComponents(new ActionRowBuilder().addComponents(tokenInput));
+                await interaction.showModal(modal);
+            } catch (err) {
+                console.error('ShowModal error:', err.message);
+                if (!interaction.replied && !interaction.deferred) {
+                    await interaction.reply({
+                        content: '⚠️ Kết nối mạng hơi chậm. Bạn có thể gõ ngay: `/quest token: <dán_token>` để cày tức thì!',
+                        ephemeral: true
+                    }).catch(() => {});
+                }
+            }
             return;
         }
 
