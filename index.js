@@ -20,11 +20,46 @@ const path = require('path');
 const http = require('http');
 const { QuestSession } = require('./quest_engine');
 
-// Optional HTTP Health-check server for 24/7 Cloud Hosting (Render, Koyeb, Glitch, etc.)
+// Optional HTTP Health-check server & Visual Diagnostic for Cloud Hosting (Render, Koyeb, Glitch, etc.)
+let botConnected = false;
+let lastLoginError = null;
+
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-    res.end('Auto Quest Discord Bot is Online 24/7!\n');
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    const isReady = client.isReady();
+    const tokenConfigured = Boolean(activeBotToken && activeBotToken !== 'DÁN_BOT_TOKEN_VÀO_ĐÂY');
+
+    let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Auto Quest Bot - Cloud Status</title></head><body style="font-family:sans-serif;background:#1e1f22;color:#fff;padding:30px;line-height:1.6;max-width:650px;margin:0 auto;">`;
+    html += `<h2 style="color:#5865F2;">⚡ Discord Auto Quest Bot Status</h2>`;
+
+    if (isReady) {
+        html += `<div style="background:#2b2d31;padding:16px;border-radius:8px;border-left:4px solid #57F287;">`;
+        html += `<p style="color:#57F287;font-size:18px;margin:0 0 8px 0;">✅ <b>BOT ĐANG ONLINE VÀ KẾT NỐI VÀO DISCORD THÀNH CÔNG!</b></p>`;
+        html += `<p style="margin:4px 0;">• Tên Bot: <b>${client.user.tag}</b> (ID: <code>${client.user.id}</code>)</p>`;
+        html += `<p style="margin:4px 0;">• Máy chủ Discord phục vụ: <b>${client.guilds.cache.size} server(s)</b></p>`;
+        html += `<p style="margin:8px 0 0 0;color:#949ba4;"><i>Bấm nút "🚀 Bắt đầu" hoặc gõ <code>/quest</code> trên Discord sẽ hoạt động ngay lập tức.</i></p>`;
+        html += `</div>`;
+    } else {
+        html += `<div style="background:#2b2d31;padding:16px;border-radius:8px;border-left:4px solid #ED4245;">`;
+        html += `<p style="color:#ED4245;font-size:18px;margin:0 0 8px 0;">❌ <b>BOT CHƯA KẾT NỐI VÀO DISCORD ĐƯỢC!</b></p>`;
+        if (!tokenConfigured) {
+            html += `<p style="color:#FAA61A;">⚠️ <b>NGUYÊN NHÂN:</b> Chưa có biến môi trường <code>BOT_TOKEN</code> trên Render!</p>`;
+            html += `<p><b>Cách sửa ngay:</b> Vào Render ➔ Dịch vụ <code>auto-quest-discord</code> ➔ Tab <b>Environment</b> ➔ Thêm:<br>• Key: <code>BOT_TOKEN</code><br>• Value: <i>(Dán Bot Token của bạn từ Developer Portal)</i></p>`;
+        } else {
+            html += `<p style="margin:4px 0;">Đã nhận biến <code>BOT_TOKEN</code> nhưng kết nối đến Discord Gateway chưa hoàn tất.</p>`;
+            if (lastLoginError) {
+                html += `<p style="color:#ED4245;margin:4px 0;">Chi tiết lỗi: <b>${lastLoginError}</b></p>`;
+            }
+        }
+        html += `</div>`;
+    }
+
+    html += `<hr style="border-color:#383a40;margin:24px 0;">`;
+    html += `<p style="color:#80848e;font-size:12px;margin:0;">Render Cloud Engine · Auto Keep-Alive Loop Active (4m)</p>`;
+    html += `</body></html>`;
+
+    res.end(html);
 }).listen(PORT, () => {
     console.log(`[Ritmada] Health check server running on port ${PORT}`);
 });
@@ -445,6 +480,7 @@ if (!activeBotToken || activeBotToken === 'DÁN_BOT_TOKEN_VÀO_ĐÂY') {
     console.log('========================================================');
 } else {
     client.login(activeBotToken).catch(err => {
+        lastLoginError = err.message;
         console.error('[Ritmada] Đăng nhập Bot thất bại:', err.message);
     });
 }
