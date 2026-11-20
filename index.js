@@ -29,6 +29,18 @@ http.createServer((req, res) => {
     console.log(`[Ritmada] Health check server running on port ${PORT}`);
 });
 
+// Auto Keep-Alive loop for Render (Resets the 15-minute inactivity timer automatically)
+const renderUrl = process.env.RENDER_EXTERNAL_URL;
+if (renderUrl) {
+    console.log(`[Ritmada] Auto Keep-Alive active for: ${renderUrl}`);
+    setInterval(async () => {
+        try {
+            await fetch(renderUrl);
+            console.log(`[Keep-Alive] Self-pinged ${renderUrl} successfully.`);
+        } catch (e) {}
+    }, 4 * 60 * 1000); // Ping every 4 minutes (Render timeout is 15 minutes)
+}
+
 // Load config
 const configPath = path.join(__dirname, 'config.json');
 let config = { botToken: '' };
